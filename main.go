@@ -2,7 +2,6 @@ package main
 
 import (
 	"image"
-	_color "image/color"
 	"image/png"
 	"math"
 	"os"
@@ -21,114 +20,8 @@ var (
 	backgroundColor = vector{0.2, 0.2, 0.2}
 )
 
-type vector struct {
-	x, y, z float64
-}
-
-type material struct {
-	diffuse, specular, ambient vector
-	specularExp float64
-}
-
-type light struct {
-	position vector
-	intensity float64
-}
-
-type object interface {
-	rayIntersect(origin, dir vector) (float64, bool)
-	getMaterial() material
-	getNormale(p vector) vector
-}
-
-type sphere struct {
-	radius float64
-	center vector
-	material material
-}
-
-
-
-func NewNormalized(x, y, z float64) vector {
-	l := math.Sqrt(x*x + y*y + z*z)
-	return vector{x / l, y / l, z / l}
-}
-
-func (v vector) Add(u vector) vector {
-	return vector{v.x + u.x, v.y + u.y, v.z + u.z}
-}
-
-func (v vector) Sub(u vector) vector {
-	return vector{v.x - u.x, v.y - u.y, v.z - u.z}
-}
-
-func (v vector) Multiply(a float64) vector {
-	return vector{v.x * a, v.y * a, v.z * a}
-}
-
-func (v vector) DotProduct(u vector) float64 {
-	return v.x*u.x + v.y*u.y + v.z*u.z
-}
-
-func (v vector) Normalize() vector {
-	return NewNormalized(v.x, v.y, v.z)
-}
-
-func (v vector) Length() float64 {
-	return math.Sqrt(v.x*v.x + v.y*v.y + v.z*v.z)
-}
-
-func (v vector) Reflect(n vector) vector {
-	// assuming v is normalized
-	return v.Sub(n.Multiply(2.0*v.DotProduct(n)))
-}
-
-func (v vector) toRGBA() _color.NRGBA {
-	R := v.x * 255
-	G := v.y * 255
-	B := v.z * 255
-	if R > 255 {
-		R = 255
-	}
-	if G > 255 {
-		G = 255
-	}
-	if B > 255 {
-		B = 255
-	}
-	return _color.NRGBA{uint8(R), uint8(G), uint8(B), 255}
-}
-
-func (s sphere) getMaterial() material {
-	return s.material
-}
-
-func (s sphere) getNormale(p vector) vector {
-	return p.Sub(s.center).Normalize()
-}
-
-// rayIntersect returns distance at which ray dir from origin intersects the sphere
-func (s sphere) rayIntersect(origin, dir vector) (float64, bool) {
-	// note: dir must be normalized
-
-	l := s.center.Sub(origin)       // vector from origin to center
-	plm := l.DotProduct(dir)        // length of projection of l on the ray
-	d2 := l.DotProduct(l) - plm*plm // squared distance between center and the ray
-
-	if d2 > s.radius*s.radius {
-		return 0, false
-	}
-
-	di := math.Sqrt(float64(s.radius*s.radius - d2)) // distance between 1st intersection and projection of center to the ray
-	if r := plm - di; r >= 0 {
-		return r, true
-	}
-	if r := plm + di; r >= 0 {
-		return r, true
-	}
-	return 0, false
-}
-
+// sceneIntersec returns object, point of intersection and its normale if ray intersects something
+// if there is no intersection, then obj == nil
 func sceneIntersec(origin, dir vector, scene []object) (intersection, normale vector, obj object) {
 	minDist := math.MaxFloat64
 	for i := range scene {
@@ -144,27 +37,32 @@ func sceneIntersec(origin, dir vector, scene []object) (intersection, normale ve
 	return intersection, normale, obj
 }
 
+// isShadowed returns true if light l is visible in direction dir from intersection
 func isShadowed(l light, scene []object, dir, intersection, normale vector) bool {
 		var shadowOrig vector
 		lightDist := l.position.Sub(intersection).Length()
+
+		// rise intersection point above the surface a bit
+		// to make sure we won't intersect with itself
 		if dir.DotProduct(normale) < 0 {
 			shadowOrig = intersection.Sub(normale.Multiply(1e-3))
 		} else {
 			shadowOrig = intersection.Add(normale.Multiply(1e-3))
 		}
+
 		if shadowPoint, _, o := sceneIntersec(shadowOrig, dir, scene); o != nil {
 			return shadowPoint.Sub(shadowOrig).Length() < lightDist
 		}
 		return false
 }
 
+// castRay casts ray from origin to dir and returns resulting color
 func castRay(origin, dir vector, scene []object, lights []light) vector {
 	intersection, normale, obj := sceneIntersec(origin, dir, scene)
 	if obj == nil {
 		return backgroundColor
 	}
 
-	// calculate each factor for current intersection
 	var diffuseIntensity, specularIntensity vector
 	var diffuseFactor, specularFactor float64
 	for i := range lights {
@@ -180,6 +78,7 @@ func castRay(origin, dir vector, scene []object, lights []light) vector {
 			obj.getMaterial().specularExp,
 		)
 
+		// calculate lighting from i-th light for each component and color channel
 		m := obj.getMaterial()
 		diffuseIntensity = diffuseIntensity.Add(m.diffuse.Multiply(diffuseFactor))
 		specularIntensity = specularIntensity.Add(m.diffuse.Multiply(specularFactor))
