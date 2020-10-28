@@ -74,6 +74,10 @@ func (v vector) Normalize() vector {
 	return NewNormalized(v.x, v.y, v.z)
 }
 
+func (v vector) Length() float64 {
+	return math.Sqrt(v.x*v.x + v.y*v.y + v.z*v.z)
+}
+
 func (v vector) Reflect(n vector) vector {
 	// assuming v is normalized
 	return v.Sub(n.Multiply(2.0*v.DotProduct(n)))
@@ -140,6 +144,20 @@ func sceneIntersec(origin, dir vector, scene []object) (intersection, normale ve
 	return intersection, normale, obj
 }
 
+func isShadowed(l light, scene []object, dir, intersection, normale vector) bool {
+		var shadowOrig vector
+		lightDist := l.position.Sub(intersection).Length()
+		if dir.DotProduct(normale) < 0 {
+			shadowOrig = intersection.Sub(normale.Multiply(1e-3))
+		} else {
+			shadowOrig = intersection.Add(normale.Multiply(1e-3))
+		}
+		if shadowPoint, _, o := sceneIntersec(shadowOrig, dir, scene); o != nil {
+			return shadowPoint.Sub(shadowOrig).Length() < lightDist
+		}
+		return false
+}
+
 func castRay(origin, dir vector, scene []object, lights []light) vector {
 	intersection, normale, obj := sceneIntersec(origin, dir, scene)
 	if obj == nil {
@@ -151,6 +169,11 @@ func castRay(origin, dir vector, scene []object, lights []light) vector {
 	var diffuseFactor, specularFactor float64
 	for i := range lights {
 		lightDir := lights[i].position.Sub(intersection).Normalize()
+
+		if isShadowed(lights[i], scene, lightDir, intersection, normale) {
+			continue
+		}
+
 		diffuseFactor = lights[i].intensity*math.Max(0.0, lightDir.DotProduct(normale))
 		specularFactor = lights[i].intensity*math.Pow(
 			math.Max(0.0, lightDir.Reflect(normale).DotProduct(dir)),
@@ -173,10 +196,11 @@ func render(img *image.RGBA) {
 		&sphere{5, vector{2, 2, -20}, matOrangeMetal},
 		&sphere{2, vector{-5, 10, -30}, matIvory},
 		&sphere{8, vector{13, 5, -20}, matRedMetal},
+		&sphere{1, vector{2, 5, -12}, matIvory},
 	}
 	lights := []light{
 		{vector{-10, 30, 10}, 1.5},
-		{vector{110, 0, 10}, 0.7},
+		{vector{40, 0, 10}, 0.7},
 	}
 
 	for y := 0; y < RESY; y++ {
