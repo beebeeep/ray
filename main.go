@@ -13,9 +13,10 @@ const (
 )
 
 var (
-	matIvory = material{vector{0.24, 0.24, 0.18}, vector{0.3, 0.3, 0.3}, vector{0, 0, 0}, 50}
-	matRedMetal = material{vector{0.37, 0.13, 0.13}, vector{0.06, 0.03, 0.03}, vector{0, 0, 0}, 10}
-	matOrangeMetal = material{vector{0.45, 0.25, 0.1}, vector{0.03, 0.02, 0.01}, vector{0, 0, 0}, 10}
+	matIvory = material{vector{0.24, 0.24, 0.18}, vector{0.03, 0.03, 0.03}, 50}
+	matRedMetal = material{vector{0.37, 0.13, 0.13}, vector{0.06, 0.03, 0.03},  10}
+	matOrangeMetal = material{vector{0.45, 0.25, 0.1}, vector{0.03, 0.02, 0.01}, 10}
+	matMirror = material{vector{0, 0, 0}, vector{0.8, 0.8, 0.8}, 1000}
 
 	backgroundColor = vector{0.2, 0.2, 0.2}
 )
@@ -39,16 +40,11 @@ func sceneIntersec(origin, dir vector, scene []object) (intersection, normale ve
 
 // isShadowed returns true if light l is visible in direction dir from intersection
 func isShadowed(l light, scene []object, dir, intersection, normale vector) bool {
-		var shadowOrig vector
 		lightDist := l.position.Sub(intersection).Length()
 
 		// rise intersection point above the surface a bit
 		// to make sure we won't intersect with itself
-		if dir.DotProduct(normale) < 0 {
-			shadowOrig = intersection.Sub(normale.Multiply(1e-3))
-		} else {
-			shadowOrig = intersection.Add(normale.Multiply(1e-3))
-		}
+		shadowOrig := intersection.Offset(dir, normale, 1e-3)
 
 		if shadowPoint, _, o := sceneIntersec(shadowOrig, dir, scene); o != nil {
 			return shadowPoint.Sub(shadowOrig).Length() < lightDist
@@ -57,11 +53,20 @@ func isShadowed(l light, scene []object, dir, intersection, normale vector) bool
 }
 
 // castRay casts ray from origin to dir and returns resulting color
-func castRay(origin, dir vector, scene []object, lights []light) vector {
+func castRay(origin, dir vector, scene []object, lights []light, depth int) vector {
+	if depth <= 0 {
+		return backgroundColor
+	}
+
 	intersection, normale, obj := sceneIntersec(origin, dir, scene)
 	if obj == nil {
 		return backgroundColor
 	}
+
+	reflectDir := dir.Reflect(normale)
+	reflectOrig := intersection.Offset(reflectDir, normale, 1e-3)
+	reflectColor := castRay(reflectOrig, reflectDir, scene, lights, depth-1)
+	reflectIntensity := obj.getMaterial().specular.EntrywiseProduct(reflectColor)
 
 	var diffuseIntensity, specularIntensity vector
 	var diffuseFactor, specularFactor float64
@@ -84,7 +89,7 @@ func castRay(origin, dir vector, scene []object, lights []light) vector {
 		specularIntensity = specularIntensity.Add(m.diffuse.Multiply(specularFactor))
 	}
 
-	return specularIntensity.Add(diffuseIntensity)
+	return specularIntensity.Add(diffuseIntensity).Add(reflectIntensity)
 }
 
 func render(img *image.RGBA) {
@@ -93,9 +98,11 @@ func render(img *image.RGBA) {
 	camera := vector{0, 0, 50}
 	scene := []object{
 		&sphere{5, vector{2, 2, -20}, matOrangeMetal},
-		&sphere{2, vector{-5, 10, -30}, matIvory},
+		&sphere{4, vector{-5, 10, -30}, matIvory},
 		&sphere{8, vector{13, 5, -20}, matRedMetal},
 		&sphere{1, vector{2, 5, -12}, matIvory},
+		&sphere{8, vector{28, 15, -12}, matMirror},
+		&sphere{3, vector{7, -7, -18}, matMirror},
 	}
 	lights := []light{
 		{vector{-10, 30, 10}, 1.5},
@@ -107,7 +114,7 @@ func render(img *image.RGBA) {
 			dx := (2*(float64(x)+0.5)/float64(RESX) - 1.0) * ft * float64(RESX) / float64(RESY)
 			dy := -(2*(float64(y)+0.5)/float64(RESY) - 1.0) * ft
 			dir := NewNormalized(dx, dy, -1)
-			img.Set(x, y, castRay(camera, dir, scene, lights).toRGBA())
+			img.Set(x, y, castRay(camera, dir, scene, lights, 4).toRGBA())
 		}
 	}
 }

@@ -26,6 +26,10 @@ func (v vector) Multiply(a float64) vector {
 	return vector{v.x * a, v.y * a, v.z * a}
 }
 
+func (v vector) EntrywiseProduct(a vector) vector {
+	return vector{v.x*a.x, v.y*a.y, v.z*a.z}
+}
+
 func (v vector) DotProduct(u vector) float64 {
 	return v.x*u.x + v.y*u.y + v.z*u.z
 }
@@ -41,6 +45,13 @@ func (v vector) Length() float64 {
 func (v vector) Reflect(n vector) vector {
 	// assuming v is normalized
 	return v.Sub(n.Multiply(2.0*v.DotProduct(n)))
+}
+
+func (v vector) Offset(dir, normale vector, dist float64) vector {
+		if dir.DotProduct(normale) < 0 {
+			return v.Sub(normale.Multiply(1e-3))
+		}
+		return v.Add(normale.Multiply(1e-3))
 }
 
 func (v vector) toRGBA() color.NRGBA {

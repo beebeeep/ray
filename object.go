@@ -9,7 +9,7 @@ type object interface {
 }
 
 type material struct {
-	diffuse, specular, ambient vector
+	diffuse, specular vector
 	specularExp float64
 }
 
