@@ -93,7 +93,7 @@ func castRay(origin, dir vector, scene []object, lights []light, depth int) vect
 	return specularIntensity.Add(diffuseIntensity).Add(reflectIntensity)
 }
 
-func render(img *image.RGBA) {
+func render(img *image.NRGBA64) {
 	fov := math.Pi / 5.0
 	ft := math.Tan(fov/2.0)
 	camera := vector{10, 5, 40}
@@ -115,13 +115,13 @@ func render(img *image.RGBA) {
 			dx := (2*(float64(x)+0.5)/float64(RESX) - 1.0) * ft * float64(RESX) / float64(RESY)
 			dy := -(2*(float64(y)+0.5)/float64(RESY) - 1.0) * ft
 			dir := NewNormalized(dx, dy, -1)
-			img.Set(x, y, castRay(camera, dir, scene, lights, 4).toRGBA())
+			img.Set(x, y, castRay(camera, dir, scene, lights, 4).toNRGBA64())
 		}
 	}
 }
 
 func main() {
-	img := image.NewRGBA(image.Rect(0, 0, RESX, RESY))
+	img := image.NewNRGBA64(image.Rect(0, 0, RESX, RESY))
 	render(img)
 	f, err := os.Create("out.png")
 	if err != nil {

@@ -54,18 +54,19 @@ func (v vector) Offset(dir, normale vector, dist float64) vector {
 		return v.Add(normale.Multiply(1e-3))
 }
 
-func (v vector) toRGBA() color.NRGBA {
-	R := v.x * 255
-	G := v.y * 255
-	B := v.z * 255
-	if R > 255 {
-		R = 255
+func (v vector) toNRGBA64() color.NRGBA64 {
+	var s float64 = 1 << 16 - 1
+	R := v.x * s
+	G := v.y * s
+	B := v.z * s
+	if R > s {
+		R = s
 	}
-	if G > 255 {
-		G = 255
+	if G > s {
+		G = s
 	}
-	if B > 255 {
-		B = 255
+	if B > s {
+		B = s
 	}
-	return color.NRGBA{uint8(R), uint8(G), uint8(B), 255}
+	return color.NRGBA64{uint16(R), uint16(G), uint16(B), uint16(s)}
 }
