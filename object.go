@@ -9,21 +9,20 @@ type object interface {
 }
 
 type material struct {
-	diffuse, specular vector
-	specularExp float64
+	diffuseRef, specularRef, transparency vector
+	specularExp, refractiveIndex          float64
 }
 
 type light struct {
-	position vector
+	position  vector
 	intensity float64
 }
 
 type sphere struct {
-	radius float64
-	center vector
+	radius   float64
+	center   vector
 	material material
 }
-
 
 func (s sphere) getMaterial() material {
 	return s.material
