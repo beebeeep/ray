@@ -71,7 +71,8 @@ func (v vector) Refract(normale vector, refractiveIndex float64) vector {
 	k := 1 - r*r*(1-cosTheta*cosTheta)
 	if k < 0 {
 		// total internal reflection
-		return vector{0, 0, 0} //v.Reflect(normale)
+		//return v.Reflect(normale)
+		return vector{0, 0, 0}
 	}
 	return v.Multiply(r).Add(normale.Multiply(r*cosTheta - math.Sqrt(k)))
 }

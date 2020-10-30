@@ -2,9 +2,14 @@ package main
 
 import (
 	"image"
-	"image/png"
+	"log"
 	"math"
 	"os"
+	"runtime"
+	"sync"
+	"time"
+
+	"golang.org/x/image/bmp"
 )
 
 const (
@@ -55,8 +60,8 @@ func isShadowed(l light, scene []object, dir, intersection, normale vector) bool
 }
 
 // castRay casts ray from origin to dir and returns resulting color
-func castRay(origin, dir vector, scene []object, lights []light, depth int) vector {
-	if depth <= 0 {
+func castRay(origin, dir vector, scene []object, lights []light, ttl int) vector {
+	if ttl <= 0 {
 		return backgroundColor
 	}
 
@@ -68,14 +73,14 @@ func castRay(origin, dir vector, scene []object, lights []light, depth int) vect
 
 	reflectDir := dir.Reflect(normale)
 	reflectOrig := intersection.Offset(reflectDir, normale, 1e-3)
-	reflectColor := castRay(reflectOrig, reflectDir, scene, lights, depth-1)
+	reflectColor := castRay(reflectOrig, reflectDir, scene, lights, ttl-1)
 	reflectIntensity := m.specularRef.EntrywiseProduct(reflectColor)
 
 	var refractDir, refractOrig, refractColor, refractIntensity vector
 	refractDir = dir.Refract(normale, m.refractiveIndex).Normalize()
 	if !refractDir.IsZero() {
 		refractOrig = intersection.Offset(refractDir, normale, 1e-3)
-		refractColor = castRay(refractOrig, refractDir, scene, lights, depth-1)
+		refractColor = castRay(refractOrig, refractDir, scene, lights, ttl-1)
 		refractIntensity = m.transparency.EntrywiseProduct(refractColor)
 	}
 
@@ -102,10 +107,50 @@ func castRay(origin, dir vector, scene []object, lights []light, depth int) vect
 	return specularIntensity.Add(diffuseIntensity).Add(reflectIntensity).Add(refractIntensity)
 }
 
-func render(img *image.NRGBA64) {
+func render(scene []object, lights []light, img *image.NRGBA64) {
 	fov := math.Pi / 5.0
 	ft := math.Tan(fov / 2.0)
 	camera := vector{10, 5, 40}
+
+	bounds := img.Bounds()
+	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+		for x := bounds.Min.X; x < bounds.Max.X; x++ {
+			dx := (2*(float64(x)+0.5)/float64(RESX) - 1.0) * ft * float64(RESX) / float64(RESY)
+			dy := -(2*(float64(y)+0.5)/float64(RESY) - 1.0) * ft
+			dir := NewNormalized(dx, dy, -1)
+			img.Set(x, y, castRay(camera, dir, scene, lights, 4).toNRGBA64())
+		}
+	}
+}
+
+func startRendering(scene []object, lights []light, img *image.NRGBA64) {
+	start := time.Now()
+	defer func() {
+		log.Printf("rendering took %s", time.Now().Sub(start).Round(time.Millisecond))
+	}()
+
+	wg := sync.WaitGroup{}
+	n := runtime.NumCPU()
+	stripeWidth := RESY / n
+	for i := 0; i < n; i++ {
+		//r := image.Rect(i*stripeWidth, 0, (i+1)*stripeWidth, RESY)
+		r := image.Rect(0, i*stripeWidth, RESX, (i+1)*stripeWidth)
+		wg.Add(1)
+		go func() {
+			t := time.Now()
+			render(scene, lights, img.SubImage(r).(*image.NRGBA64))
+			log.Printf("stripe %v rendered in %s", r, time.Now().Sub(t).Round(time.Millisecond))
+			wg.Done()
+		}()
+	}
+	wg.Wait()
+}
+
+func main() {
+	start := time.Now()
+	defer func() {
+		log.Printf("done in %s", time.Now().Sub(start).Round(time.Millisecond))
+	}()
 	scene := []object{
 		&sphere{5, vector{2, 2, -20}, matOrangeMetal},
 		&sphere{4, vector{-5, 10, -30}, matIvory},
@@ -120,26 +165,18 @@ func render(img *image.NRGBA64) {
 		{vector{40, 0, 10}, 0.7},
 	}
 
-	for y := 0; y < RESY; y++ {
-		for x := 0; x < RESX; x++ {
-			dx := (2*(float64(x)+0.5)/float64(RESX) - 1.0) * ft * float64(RESX) / float64(RESY)
-			dy := -(2*(float64(y)+0.5)/float64(RESY) - 1.0) * ft
-			dir := NewNormalized(dx, dy, -1)
-			img.Set(x, y, castRay(camera, dir, scene, lights, 4).toNRGBA64())
-		}
-	}
-}
-
-func main() {
 	img := image.NewNRGBA64(image.Rect(0, 0, RESX, RESY))
-	render(img)
-	f, err := os.Create("out.png")
+	startRendering(scene, lights, img)
+
+	f, err := os.Create("out.bmp")
 	if err != nil {
 		panic(err)
 	}
-	if err := png.Encode(f, img); err != nil {
+	s := time.Now()
+	if err := bmp.Encode(f, img); err != nil {
 		panic(err)
 	}
+	log.Printf("image written in %s", time.Now().Sub(s).Round(time.Millisecond))
 	if err := f.Close(); err != nil {
 		panic(err)
 	}
