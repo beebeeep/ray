@@ -9,35 +9,10 @@ type scene struct {
 	objects []object
 	lights []light
 	fov float64
-	cameraPos vector
-	cameraDir vector
-	cameraToWorld m44
+	camera ray
 }
+
 func (s *scene) calculateCameraToWorld() {
-	tmp := vector{0,1,0}
-	forward := s.cameraDir.Multiply(-1).Normalize()
-	right := tmp.CrossProduct(forward)
-	up := forward.CrossProduct(right)
-
-	s.cameraToWorld[0][0] = right.x
-	s.cameraToWorld[0][1] = right.y
-	s.cameraToWorld[0][2] = right.z
-	s.cameraToWorld[0][3] = 0
-
-	s.cameraToWorld[1][0] = up.x
-	s.cameraToWorld[1][1] = up.y
-	s.cameraToWorld[1][2] = up.z
-	s.cameraToWorld[1][3] = 0
-
-	s.cameraToWorld[2][0] = forward.x
-	s.cameraToWorld[2][1] = forward.y
-	s.cameraToWorld[2][2] = forward.z
-	s.cameraToWorld[2][3] = 0
-
-	s.cameraToWorld[3][0] = s.cameraPos.x
-	s.cameraToWorld[3][1] = s.cameraPos.y
-	s.cameraToWorld[3][2] = s.cameraPos.z
-	s.cameraToWorld[3][3] = 1
 }
 
 // intersec returns object, point of intersection and its normale if ray intersects something
@@ -131,8 +106,8 @@ func (s *scene) render(img *image.NRGBA64) {
 			dx := (2*(x+0.5)/w - 1.0) * ft * w/h
 			dy := -(2*(y+0.5)/h - 1.0) * ft
 			camDir := vector{dx, dy, -1}.Normalize()
-			worldDir := camDir.TransformDir(s.cameraToWorld).Normalize()
-			img.Set(int(x), int(y), s.castRay(s.cameraPos, worldDir, _ttl).toNRGBA64())
+			worldDir := camDir.TransformDir(s.camera.transformMatrix).Normalize()
+			img.Set(int(x), int(y), s.castRay(s.camera.origin, worldDir, _ttl).toNRGBA64())
 		}
 	}
 }

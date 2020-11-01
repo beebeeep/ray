@@ -10,6 +10,11 @@ type vector struct {
 	x, y, z float64
 }
 
+type ray struct {
+	origin, dir vector
+	transformMatrix m44
+}
+
 type m44 [4][4]float64
 
 type matrix [][]float64
@@ -160,3 +165,32 @@ func (m m44) Dump() {
 	}
 }
 
+// calculateTransformMatrix calculates transformation matrix
+// to convert from ray basis to world basis
+// in ray basis z-axis goes in -r.dir
+func (r *ray) calculateTransformMatrix() {
+	tmp := vector{0,1,0}
+	forward := r.dir.Multiply(-1).Normalize()
+	right := tmp.CrossProduct(forward)
+	up := forward.CrossProduct(right)
+
+	r.transformMatrix[0][0] = right.x
+	r.transformMatrix[0][1] = right.y
+	r.transformMatrix[0][2] = right.z
+	r.transformMatrix[0][3] = 0
+
+	r.transformMatrix[1][0] = up.x
+	r.transformMatrix[1][1] = up.y
+	r.transformMatrix[1][2] = up.z
+	r.transformMatrix[1][3] = 0
+
+	r.transformMatrix[2][0] = forward.x
+	r.transformMatrix[2][1] = forward.y
+	r.transformMatrix[2][2] = forward.z
+	r.transformMatrix[2][3] = 0
+
+	r.transformMatrix[3][0] = r.origin.x
+	r.transformMatrix[3][1] = r.origin.y
+	r.transformMatrix[3][2] = r.origin.z
+	r.transformMatrix[3][3] = 1
+}

@@ -81,10 +81,9 @@ func renderOrbit(s scene, img *image.NRGBA64) {
 		i++
 		log.Printf("rendering frame %d", i)
 
-		s.cameraPos = orbitC.Add(r)
-		s.cameraDir = orbitC.Sub(s.cameraPos).Normalize()
-		s.calculateCameraToWorld()
-		log.Printf("camera is at %v", s.cameraPos)
+		s.camera.origin = orbitC.Add(r)
+		s.camera.dir = orbitC.Sub(s.camera.origin).Normalize()
+		s.camera.calculateTransformMatrix()
 		startRendering(s, img)
 
 		f, err := os.Create(fmt.Sprintf("out-%06d.bmp", i))
@@ -121,13 +120,15 @@ func main() {
 		{vector{-10, 30, 10}, 1.5},
 		{vector{40, 0, 10}, 0.7},
 	},
-	cameraPos: vector{10, 5, 40},
-	cameraDir: vector{0, 0, -1},
+	camera: ray{
+		origin: vector{10, 5, 40},
+		dir: vector{0, 0, -1},
+	},
 	fov: math.Pi / 5.0,
 }
-	scene.calculateCameraToWorld()
+	scene.camera.calculateTransformMatrix()
 	img := image.NewNRGBA64(image.Rect(0, 0, RESX, RESY))
-	renderOrbit(scene, img)
-	//renderStatic(scene, img)
+	//renderOrbit(scene, img)
+	renderStatic(scene, img)
 
 }
