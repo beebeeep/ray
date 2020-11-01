@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"image/color"
 	"math"
 )
@@ -8,6 +9,10 @@ import (
 type vector struct {
 	x, y, z float64
 }
+
+type m44 [4][4]float64
+
+type matrix [][]float64
 
 func NewNormalized(x, y, z float64) vector {
 	l := math.Sqrt(x*x + y*y + z*z)
@@ -37,6 +42,10 @@ func (v vector) DotProduct(u vector) float64 {
 	return v.x*u.x + v.y*u.y + v.z*u.z
 }
 
+func (v vector) CrossProduct(u vector) vector {
+	return vector{v.y*u.z - v.z*u.y,  v.z*u.x - v.x*u.z, v.x * u.y - v.y*u.x}
+}
+
 func (v vector) Normalize() vector {
 	return NewNormalized(v.x, v.y, v.z)
 }
@@ -47,6 +56,25 @@ func (v vector) Length() float64 {
 
 func (v vector) IsZero() bool {
 	return v.x == 0 && v.y == 0 && v.z == 0
+}
+
+func (v vector) TransformPoint(m m44) vector {
+	var x, y, z, w float64
+	x = v.x * m[0][0] + v.y * m[1][0] + v.z*m[2][0] + m[3][0]
+	y = v.x * m[0][1] + v.y * m[1][1] + v.z*m[2][1] + m[3][1]
+	z = v.x * m[0][2] + v.y * m[1][2] + v.z*m[2][2] + m[3][2]
+	w = v.x * m[0][3] + v.y * m[1][3] + v.z*m[2][3] + m[3][3]
+
+	return vector{x/w, y/w, z/w}
+}
+
+func (v vector) TransformDir(m m44) vector {
+	var x, y, z  float64
+	x = v.x * m[0][0] + v.y * m[1][0] + v.z*m[2][0]
+	y = v.x * m[0][1] + v.y * m[1][1] + v.z*m[2][1]
+	z = v.x * m[0][2] + v.y * m[1][2] + v.z*m[2][2]
+
+	return vector{x, y, z}
 }
 
 func (v vector) Reflect(n vector) vector {
@@ -100,3 +128,35 @@ func (v vector) toNRGBA64() color.NRGBA64 {
 	}
 	return color.NRGBA64{uint16(R), uint16(G), uint16(B), uint16(s)}
 }
+
+func (a matrix) Multiply(b matrix) matrix {
+	ra := len(a)
+	ca := len(a[0])
+	rb := len(b)
+	cb := len(b[0])
+	if ca != rb {
+		panic(fmt.Sprintf("cannot multiply %dx%d and %dx%d", ra, ca, rb, cb))
+	}
+
+	r := make(matrix, ra)
+	for i := 0; i < ra; i++ {
+		r[i] = make([]float64, cb)
+		for j := 0; j < cb; j++ {
+			for k := 0; k < ca; k++ {
+				r[i][j] += a[i][k]*b[k][j]
+			}
+		}
+	}
+
+	return r
+}
+
+func (m m44) Dump() {
+	for _, r := range m {
+		for _, v := range r {
+			fmt.Printf("%v\t", v)
+		}
+		fmt.Print("\n")
+	}
+}
+

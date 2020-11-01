@@ -9,7 +9,35 @@ type scene struct {
 	objects []object
 	lights []light
 	fov float64
-	camera vector
+	cameraPos vector
+	cameraDir vector
+	cameraToWorld m44
+}
+func (s *scene) calculateCameraToWorld() {
+	tmp := vector{0,1,0}
+	forward := s.cameraDir.Multiply(-1).Normalize()
+	right := tmp.CrossProduct(forward)
+	up := forward.CrossProduct(right)
+
+	s.cameraToWorld[0][0] = right.x
+	s.cameraToWorld[0][1] = right.y
+	s.cameraToWorld[0][2] = right.z
+	s.cameraToWorld[0][3] = 0
+
+	s.cameraToWorld[1][0] = up.x
+	s.cameraToWorld[1][1] = up.y
+	s.cameraToWorld[1][2] = up.z
+	s.cameraToWorld[1][3] = 0
+
+	s.cameraToWorld[2][0] = forward.x
+	s.cameraToWorld[2][1] = forward.y
+	s.cameraToWorld[2][2] = forward.z
+	s.cameraToWorld[2][3] = 0
+
+	s.cameraToWorld[3][0] = s.cameraPos.x
+	s.cameraToWorld[3][1] = s.cameraPos.y
+	s.cameraToWorld[3][2] = s.cameraPos.z
+	s.cameraToWorld[3][3] = 1
 }
 
 // intersec returns object, point of intersection and its normale if ray intersects something
@@ -94,14 +122,17 @@ func (s *scene) castRay(origin, dir vector, ttl int) vector {
 func (s *scene) render(img *image.NRGBA64) {
 
 	ft := math.Tan(s.fov / 2.0)
+	w := float64(RESX)
+	h := float64(RESY)
 
 	bounds := img.Bounds()
-	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
-		for x := bounds.Min.X; x < bounds.Max.X; x++ {
-			dx := (2*(float64(x)+0.5)/float64(RESX) - 1.0) * ft * float64(RESX) / float64(RESY)
-			dy := -(2*(float64(y)+0.5)/float64(RESY) - 1.0) * ft
-			dir := NewNormalized(dx, dy, -1)
-			img.Set(x, y, s.castRay(s.camera, dir, _ttl).toNRGBA64())
+	for y := float64(bounds.Min.Y); y < float64(bounds.Max.Y); y++ {
+		for x := float64(bounds.Min.X); x < float64(bounds.Max.X); x++ {
+			dx := (2*(x+0.5)/w - 1.0) * ft * w/h
+			dy := -(2*(y+0.5)/h - 1.0) * ft
+			camDir := vector{dx, dy, -1}.Normalize()
+			worldDir := camDir.TransformDir(s.cameraToWorld).Normalize()
+			img.Set(int(x), int(y), s.castRay(s.cameraPos, worldDir, _ttl).toNRGBA64())
 		}
 	}
 }

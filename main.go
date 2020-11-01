@@ -1,7 +1,9 @@
 package main
 
 import (
+	"fmt"
 	"image"
+	"image/png"
 	"log"
 	"math"
 	"os"
@@ -53,6 +55,53 @@ func startRendering(s scene, img *image.NRGBA64) {
 	wg.Wait()
 }
 
+func renderStatic(s scene, img *image.NRGBA64) {
+		startRendering(s, img)
+		f, err := os.Create("out.png")
+		if err != nil {
+			panic(err)
+		}
+		if err := png.Encode(f, img); err != nil {
+			panic(err)
+		}
+		if err := f.Close(); err != nil {
+			panic(err)
+		}
+	}
+
+func renderOrbit(s scene, img *image.NRGBA64) {
+	var orbitR = float64(120)
+	var orbitC = vector{7.5, 5, -20}
+	fps := 60.0
+	frames := 5.0*fps
+
+	i := -1
+	for phi := float64(0); phi < 2.0*math.Pi; phi += 2.0*math.Pi/frames {
+		r := vector{orbitR*math.Cos(phi), 0, orbitR*math.Sin(phi)}
+		i++
+		log.Printf("rendering frame %d", i)
+
+		s.cameraPos = orbitC.Add(r)
+		s.cameraDir = orbitC.Sub(s.cameraPos).Normalize()
+		s.calculateCameraToWorld()
+		log.Printf("camera is at %v", s.cameraPos)
+		startRendering(s, img)
+
+		f, err := os.Create(fmt.Sprintf("out-%06d.bmp", i))
+		if err != nil {
+			panic(err)
+		}
+		s := time.Now()
+		if err := bmp.Encode(f, img); err != nil {
+			panic(err)
+		}
+		log.Printf("image written in %s", time.Now().Sub(s).Round(time.Millisecond))
+		if err := f.Close(); err != nil {
+			panic(err)
+		}
+	}
+}
+
 func main() {
 	start := time.Now()
 	defer func() {
@@ -72,23 +121,13 @@ func main() {
 		{vector{-10, 30, 10}, 1.5},
 		{vector{40, 0, 10}, 0.7},
 	},
-	camera: vector{10, 5, 40},
+	cameraPos: vector{10, 5, 40},
+	cameraDir: vector{0, 0, -1},
 	fov: math.Pi / 5.0,
 }
-
+	scene.calculateCameraToWorld()
 	img := image.NewNRGBA64(image.Rect(0, 0, RESX, RESY))
-	startRendering(scene, img)
+	renderOrbit(scene, img)
+	//renderStatic(scene, img)
 
-	f, err := os.Create("out.bmp")
-	if err != nil {
-		panic(err)
-	}
-	s := time.Now()
-	if err := bmp.Encode(f, img); err != nil {
-		panic(err)
-	}
-	log.Printf("image written in %s", time.Now().Sub(s).Round(time.Millisecond))
-	if err := f.Close(); err != nil {
-		panic(err)
-	}
 }
